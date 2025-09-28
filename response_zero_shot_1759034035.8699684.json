@@ -1,0 +1,48 @@
+{
+  "strategy": "zero_shot",
+  "prompt_prefix": "PRAGMA foreign_keys = ON;\n\nDROP TABLE IF EXISTS Pizza_Topping;\nDROP TABLE IF EXISTS Pizza;\nDROP TABLE IF EXISTS Topping;\nDROP TABLE IF EXISTS Sauce;\nDROP TABLE IF EXISTS Crust;\nDROP TABLE IF EXISTS \"Order\";\nDROP TABLE IF EXISTS Address;\nDROP TABLE IF EXISTS Customer;\nDROP TABLE IF EXISTS Employee;\nDROP TABLE IF EXISTS Store;\n\nCREATE TABLE Address (\n    address_id INTEGER PRIMARY KEY AUTOINCREMENT,\n    street TEXT NOT NULL,\n    city TEXT NOT NULL,\n    state TEXT NOT NULL,\n    zip TEXT NOT NULL\n);\n\nCREATE TABLE Store (\n    store_id INTEGER PRIMARY KEY AUTOINCREMENT,\n    name TEXT NOT NULL,\n    address_id INTEGER,\n    phone TEXT,\n    FOREIGN KEY (address_id) REFERENCES Address(address_id)\n);\n\nCREATE TABLE Customer (\n    customer_id INTEGER PRIMARY KEY AUTOINCREMENT,\n    first_name TEXT NOT NULL,\n    last_name TEXT NOT NULL,\n    phone_number TEXT,\n    email TEXT\n);\n\nCREATE TABLE \"Order\" (\n    order_id INTEGER PRIMARY KEY AUTOINCREMENT,\n    customer_id INTEGER NOT NULL,\n    address_id INTEGER,\n    store_id INTEGER NOT NULL,\n    order_date TEXT NOT NULL, \n    total_amount REAL NOT NULL,\n    delivery INTEGER NOT NULL DEFAULT 0,\n    FOREIGN KEY (customer_id) REFERENCES Customer(customer_id),\n    FOREIGN KEY (address_id) REFERENCES Address(address_id),\n    FOREIGN KEY (store_id) REFERENCES Store(store_id)\n);\n\nCREATE TABLE Crust (\n    crust_id INTEGER PRIMARY KEY AUTOINCREMENT,\n    name TEXT NOT NULL,\n    extra_cost REAL DEFAULT 0.0\n);\n\nCREATE TABLE Sauce (\n    sauce_id INTEGER PRIMARY KEY AUTOINCREMENT,\n    name TEXT NOT NULL,\n    extra_cost REAL DEFAULT 0.0\n);\n\nCREATE TABLE Topping (\n    topping_id INTEGER PRIMARY KEY AUTOINCREMENT,\n    name TEXT NOT NULL,\n    extra_cost REAL DEFAULT 0.0\n);\n\nCREATE TABLE Pizza (\n    pizza_id INTEGER PRIMARY KEY AUTOINCREMENT,\n    order_id INTEGER NOT NULL,\n    size TEXT NOT NULL,\n    crust_id INTEGER NOT NULL,\n    sauce_id INTEGER NOT NULL,\n    FOREIGN KEY (order_id) REFERENCES \"Order\"(order_id),\n    FOREIGN KEY (crust_id) REFERENCES Crust(crust_id),\n    FOREIGN KEY (sauce_id) REFERENCES Sauce(sauce_id)\n);\n\nCREATE TABLE Pizza_Topping (\n    pizza_id INTEGER NOT NULL,\n    topping_id INTEGER NOT NULL,\n    PRIMARY KEY (pizza_id, topping_id),\n    FOREIGN KEY (pizza_id) REFERENCES Pizza(pizza_id),\n    FOREIGN KEY (topping_id) REFERENCES Topping(topping_id)\n);\n\nCREATE TABLE Employee (\n    employee_id INTEGER PRIMARY KEY AUTOINCREMENT,\n    first_name TEXT NOT NULL,\n    last_name TEXT NOT NULL,\n    store_id INTEGER NOT NULL,\n    role TEXT,\n    hourly_rate REAL NOT NULL,\n    date_hired TEXT NOT NULL,\n    phone_number TEXT,\n    FOREIGN KEY (store_id) REFERENCES Store(store_id)\n);\n Give me a sqlite SELECT statement that answers the question. Only respond with sqlite syntax. If there is an error do not explain it!",
+  "questionResults": [
+    {
+      "question": "Which store has the highest total sales?",
+      "sql": "SELECT s.store_id, s.name, SUM(o.total_amount) AS total_sales\nFROM Store s\nJOIN \"Order\" o ON s.store_id = o.store_id\nGROUP BY s.store_id, s.name\nORDER BY total_sales DESC\nLIMIT 1;",
+      "queryRawResponse": "[(3, 'ChatPizza Lehi', 32.0)]",
+      "friendlyResponse": "ChatPizza Lehi has the highest total sales.",
+      "error": "None"
+    },
+    {
+      "question": "List each customer and how many orders they have placed.",
+      "sql": "SELECT Customer.first_name, Customer.last_name, COUNT(\"Order\".order_id) AS order_count\nFROM Customer\nLEFT JOIN \"Order\" ON Customer.customer_id = \"Order\".customer_id\nGROUP BY Customer.customer_id;",
+      "queryRawResponse": "[('Laura', 'Stevenson', 1), ('Bob', 'Jones', 1), ('Charlie', 'Brown', 0), ('Sydney', 'Smith', 1)]",
+      "friendlyResponse": "Sure! Here's a simple breakdown:\n\n- Laura Stevenson: 1 order\n- Bob Jones: 1 order\n- Charlie Brown: 0 orders\n- Sydney Smith: 1 order",
+      "error": "None"
+    },
+    {
+      "question": "Which orders were deliveries and to which cities?",
+      "sql": "SELECT \n    \"Order\".order_id, \n    Address.city\nFROM \n    \"Order\"\nJOIN \n    Address ON \"Order\".address_id = Address.address_id\nWHERE \n    \"Order\".delivery = 1;",
+      "queryRawResponse": "[(2, 'Orem')]",
+      "friendlyResponse": "Order 2 was delivered to Orem.",
+      "error": "None"
+    },
+    {
+      "question": "Show each pizza with its size and a comma-separated list of toppings.",
+      "sql": "SELECT \n    p.pizza_id,\n    p.size,\n    GROUP_CONCAT(t.name, ', ') AS toppings\nFROM \n    Pizza p\nLEFT JOIN \n    Pizza_Topping pt ON p.pizza_id = pt.pizza_id\nLEFT JOIN \n    Topping t ON pt.topping_id = t.topping_id\nGROUP BY \n    p.pizza_id, p.size;",
+      "queryRawResponse": "[(1, 'Medium', 'Mozzarella, Pepperoni, Mushrooms'), (2, 'Large', 'Mozzarella, Sausage, Onions, Olives'), (3, 'Small', 'Mozzarella, Mushrooms, Olives'), (4, 'Large', 'Mozzarella, Pepperoni, Sausage, Mushrooms, Onions, Olives, Basil')]",
+      "friendlyResponse": "Sure! Here you go:\n\n1. Medium Pizza: Mozzarella, Pepperoni, Mushrooms\n2. Large Pizza: Mozzarella, Sausage, Onions, Olives\n3. Small Pizza: Mozzarella, Mushrooms, Olives\n4. Large Pizza: Mozzarella, Pepperoni, Sausage, Mushrooms, Onions, Olives, Basil",
+      "error": "None"
+    },
+    {
+      "question": "What are the top 3 most popular toppings by usage count?",
+      "sql": "SELECT Topping.name, COUNT(Pizza_Topping.topping_id) AS usage_count\nFROM Pizza_Topping\nJOIN Topping ON Pizza_Topping.topping_id = Topping.topping_id\nGROUP BY Topping.topping_id\nORDER BY usage_count DESC\nLIMIT 3;",
+      "queryRawResponse": "[('Mozzarella', 4), ('Olives', 3), ('Mushrooms', 3)]",
+      "friendlyResponse": "The top three most popular toppings are Mozzarella, Olives, and Mushrooms.",
+      "error": "None"
+    },
+    {
+      "question": "For each store, how many pizzas were sold?",
+      "sql": "SELECT \n    s.store_id, \n    s.name,\n    COUNT(p.pizza_id) AS pizzas_sold\nFROM \n    Store s\nJOIN \n    \"Order\" o ON s.store_id = o.store_id\nJOIN \n    Pizza p ON o.order_id = p.order_id\nGROUP BY \n    s.store_id, s.name;",
+      "queryRawResponse": "[(1, 'ChatPizza Provo', 1), (2, 'ChatPizza Orem', 2), (3, 'ChatPizza Lehi', 1)]",
+      "friendlyResponse": "Sure! In Provo, 1 pizza was sold; in Orem, 2 pizzas; and in Lehi, 1 pizza.",
+      "error": "None"
+    }
+  ]
+}
